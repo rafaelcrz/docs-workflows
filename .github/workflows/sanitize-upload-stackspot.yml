@@ -15,6 +15,8 @@ on:
         required: true
       STACKSPOT_CLIENT_SECRET:
         required: true
+      DOCS_WORKFLOWS_TOKEN:
+        required: true
 
 jobs:
   sanitize-and-upload:
@@ -28,7 +30,8 @@ jobs:
       - name: Checkout do repo de scripts
         uses: actions/checkout@v4
         with:
-          repository: org/docs-workflows
+          repository: rafaelcrz/docs-workflows
+          token: ${{ secrets.DOCS_WORKFLOWS_TOKEN }}
           path: scripts-repo
 
       - uses: actions/setup-node@v4
@@ -40,7 +43,7 @@ jobs:
         working-directory: scripts-repo
 
       - name: Sanitizar e enviar ao StackSpot
-        run: node ../scripts-repo/scripts/sanitize-and-upload.js --path "${{ github.workspace }}/module-docs/${{ inputs.docs-path }}" --module "${{ inputs.module-name }}"
+        run: node scripts-repo/scripts/sanitize-and-upload.js --path "${{ github.workspace }}/module-docs/${{ inputs.docs-path }}" --module "${{ inputs.module-name }}"
         env:
           STACKSPOT_CLIENT_ID: ${{ secrets.STACKSPOT_CLIENT_ID }}
           STACKSPOT_CLIENT_SECRET: ${{ secrets.STACKSPOT_CLIENT_SECRET }}
