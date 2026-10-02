@@ -1,50 +1,33 @@
-// Funções que serão usadas para ler o output do Docusaurus
-const fs = require('fs');
-const path = require('path');
-// const cheerio = require('cheerio');
 
-function readSiteConfig(moduleDocsPath) {
-  const configPath = path.join(moduleDocsPath, 'docusaurus.config.js');
-  const config = require(configPath);
-  return { siteUrl: config.url, baseUrl: config.baseUrl };
+// Funções para ler algumas variáveis de ambiente e argumentos passados para o script
+
+const { parseArgs } = require('node:util');
+const { listPages, extractImages, readSiteConfig } = require('./read-docusaurus-output');
+
+const { values } = parseArgs({
+  options: {
+    path: { type: 'string' }, // docs source, para sanitização
+    'build-path': { type: 'string' }, // build/, para paths + imagens
+  },
+  strict: false,
+});
+
+if (!values.path || !values['build-path']) {
+  console.error('Uso: node sanitize-and-upload.js --path <docs-dir> --build-path <build-dir>');
+  process.exit(1);
 }
 
-function listPages(buildDir) {
-  if (!fs.existsSync(buildDir)) {
-    throw new Error(`Build dir não encontrado: ${buildDir}. Rode "npm run build" antes.`);
-  }
+console.log('Path do docs:', values.path);
+console.log('Path do build:', values['build-path']);
 
-  const pages = [];
+console.log('CLIENT_ID definido?', !!process.env.STACKSPOT_CLIENT_ID);
+console.log('Tamanho:', process.env.STACKSPOT_CLIENT_ID?.length);
 
-  function walk(dir) {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        walk(fullPath);
-      } else if (entry.name === 'index.html') {
-        const route = '/' + path.relative(buildDir, dir).replace(/\\/g, '/');
-        pages.push({ route, htmlPath: fullPath });
-      }
-    }
-  }
+const { siteUrl, baseUrl } = readSiteConfig(values.path);
+const pages = listPages(values['build-path']);
+const images = extractImages(pages, siteUrl, baseUrl);
 
-  walk(buildDir);
-  return pages;
-}
-
-function extractImages(pages, siteUrl, baseUrl) {
-  const images = [];
-
-  // for (const { route, htmlPath } of pages) {
-  //   const $ = cheerio.load(fs.readFileSync(htmlPath, 'utf-8'));
-  //   $('img').each((_, el) => {
-  //     const src = $(el).attr('src');
-  //     if (!src || !src.startsWith(baseUrl)) return;
-  //     images.push({ imageUrl: `${siteUrl}${src}`, page: route });
-  //   });
-  // }
-
-  return images;
-}
-
-module.exports = { listPages, extractImages, readSiteConfig };
+console.log(`Páginas encontradas: ${pages.length}`);
+console.log(pages);
+console.log(`Imagens encontradas: ${images.length}`);
+console.log(images);
