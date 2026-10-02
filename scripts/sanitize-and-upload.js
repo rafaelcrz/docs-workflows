@@ -1,7 +1,7 @@
 // Funções que serão usadas para ler o output do Docusaurus
 const fs = require('fs');
 const path = require('path');
-const cheerio = require('cheerio');
+// const cheerio = require('cheerio');
 
 function readSiteConfig(moduleDocsPath) {
   const configPath = path.join(moduleDocsPath, 'docusaurus.config.js');
@@ -35,14 +35,14 @@ function listPages(buildDir) {
 function extractImages(pages, siteUrl, baseUrl) {
   const images = [];
 
-  for (const { route, htmlPath } of pages) {
-    const $ = cheerio.load(fs.readFileSync(htmlPath, 'utf-8'));
-    $('img').each((_, el) => {
-      const src = $(el).attr('src');
-      if (!src || !src.startsWith(baseUrl)) return;
-      images.push({ imageUrl: `${siteUrl}${src}`, page: route });
-    });
-  }
+  // for (const { route, htmlPath } of pages) {
+  //   const $ = cheerio.load(fs.readFileSync(htmlPath, 'utf-8'));
+  //   $('img').each((_, el) => {
+  //     const src = $(el).attr('src');
+  //     if (!src || !src.startsWith(baseUrl)) return;
+  //     images.push({ imageUrl: `${siteUrl}${src}`, page: route });
+  //   });
+  // }
 
   return images;
 }
