@@ -2,10 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 // Fluxo: https://ai.stackspot.com/docs/knowledge-source/create-update-via-api
-const IDM_URL = 'https://idm.stackspot.com';
-const API_URL = 'https://data-integration-api.stackspot.com';
+// As variáveis STACKSPOT_* permitem apontar para o mock-server/ nos testes locais
+const IDM_URL = process.env.STACKSPOT_IDM_URL ?? 'https://idm.stackspot.com';
+const API_URL = process.env.STACKSPOT_API_URL ?? 'https://data-integration-api.stackspot.com';
 
-const POLL_INTERVAL_MS = 2 * 60 * 1000;
+const POLL_INTERVAL_MS = Number(process.env.STACKSPOT_POLL_INTERVAL_MS ?? 2 * 60 * 1000);
 const POLL_TIMEOUT_MS = 10 * 60 * 1000;
 
 async function request(url, options = {}) {

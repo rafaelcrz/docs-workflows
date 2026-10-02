@@ -10,6 +10,14 @@ on:
         required: false
         type: string
         default: 'docs'
+      use-mock:
+        required: false
+        type: boolean
+        default: true
+      stackspot-realm:
+        required: false
+        type: string
+        default: ''
     secrets:
       STACKSPOT_CLIENT_ID:
         required: true
@@ -48,9 +56,34 @@ jobs:
           npm run build
         working-directory: module-docs
 
+      - name: Subir mock do StackSpot
+        if: ${{ inputs.use-mock }}
+        run: |
+          node scripts-repo/mock-server/server.js > mock-server.log 2>&1 &
+          for i in $(seq 1 20); do
+            curl -s -o /dev/null http://localhost:4010 && exit 0
+            sleep 0.5
+          done
+          echo "Mock do StackSpot não subiu"; cat mock-server.log; exit 1
+
       - name: Sanitizar e enviar ao StackSpot
-        run: node scripts-repo/scripts/sanitize-and-upload.js --path "${{ github.workspace }}/module-docs/${{ inputs.docs-path }}" --build-path "${{ github.workspace }}/module-docs/build"
+        run: |
+          if [ "${{ inputs.use-mock }}" = "true" ]; then
+            export STACKSPOT_IDM_URL=http://localhost:4010
+            export STACKSPOT_API_URL=http://localhost:4010
+            export STACKSPOT_POLL_INTERVAL_MS=500
+            export STACKSPOT_REALM="${STACKSPOT_REALM:-mock}"
+          fi
+          node scripts-repo/scripts/sanitize-and-upload.js \
+            --path "${{ github.workspace }}/module-docs/${{ inputs.docs-path }}" \
+            --build-path "${{ github.workspace }}/module-docs/build" \
+            --publish
         env:
           KS_SLUG: ${{ inputs.ks-slug }}
+          STACKSPOT_REALM: ${{ inputs.stackspot-realm }}
           STACKSPOT_CLIENT_ID: ${{ secrets.STACKSPOT_CLIENT_ID }}
           STACKSPOT_CLIENT_SECRET: ${{ secrets.STACKSPOT_CLIENT_SECRET }}
+
+      - name: Log do mock do StackSpot
+        if: ${{ always() && inputs.use-mock }}
+        run: cat mock-server.log
