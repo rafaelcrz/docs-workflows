@@ -14,6 +14,7 @@ import {
 } from './read-docusaurus-output.js';
 import { sanitize } from './sanitize.js';
 import { upload } from './upload.js';
+import { writeImagesMarkdown } from './images-markdown.js';
 import { zipFiles } from './zip.js';
 import { uploadZipToKnowledgeSource } from './stackspot-client.js';
 
@@ -59,6 +60,8 @@ for (const file of listDocFiles(values.path)) {
   const sanitized = sanitize(file, fs.readFileSync(file, 'utf-8'));
   outputFiles.push(upload(route, sanitized, values['output-path']));
 }
+
+outputFiles.push(writeImagesMarkdown(images, values['output-path']));
 
 // zipa só o que foi gerado nesta execução (evita arquivos velhos da pasta de saída)
 zipFiles(outputFiles, values['zip-path']);
