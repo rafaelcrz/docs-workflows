@@ -1,8 +1,8 @@
 
 // Funções para ler algumas variáveis de ambiente e argumentos passados para o script
 
-const { parseArgs } = require('node:util');
-const { listPages, extractImages, readSiteConfig } = require('./read-docusaurus-output');
+import { parseArgs } from 'node:util';
+import { listPages, extractImages, readSiteConfig } from './read-docusaurus-output.js';
 
 const { values } = parseArgs({
   options: {
@@ -24,7 +24,7 @@ console.log('CLIENT_ID definido?', !!process.env.STACKSPOT_CLIENT_ID);
 console.log('Tamanho:', process.env.STACKSPOT_CLIENT_ID?.length);
 
 // TODO: reativar junto com extractImages (o config do módulo é docusaurus.config.ts, não .js)
-// const { siteUrl, baseUrl } = readSiteConfig(values.path);
+// const { siteUrl, baseUrl } = await readSiteConfig(values.path);
 const siteUrl = undefined;
 const baseUrl = undefined;
 const pages = listPages(values['build-path']);

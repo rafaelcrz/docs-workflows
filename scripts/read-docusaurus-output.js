@@ -1,11 +1,13 @@
 // Funções que serão usadas para ler o output do Docusaurus
-const fs = require('fs');
-const path = require('path');
-// const cheerio = require('cheerio');
+import fs from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+// import * as cheerio from 'cheerio';
 
-function readSiteConfig(moduleDocsPath) {
+async function readSiteConfig(moduleDocsPath) {
   const configPath = path.join(moduleDocsPath, 'docusaurus.config.js');
-  const config = require(configPath);
+  const mod = await import(pathToFileURL(configPath).href);
+  const config = mod.default ?? mod;
   return { siteUrl: config.url, baseUrl: config.baseUrl };
 }
 
@@ -47,4 +49,4 @@ function extractImages(pages, siteUrl, baseUrl) {
   return images;
 }
 
-module.exports = { listPages, extractImages, readSiteConfig };
+export { listPages, extractImages, readSiteConfig };
