@@ -2,11 +2,21 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-// import * as cheerio from 'cheerio';
+import * as cheerio from 'cheerio';
 
-async function readSiteConfig(moduleDocsPath) {
-  const configPath = path.join(moduleDocsPath, 'docusaurus.config.js');
-  const mod = await import(pathToFileURL(configPath).href);
+const CONFIG_FILES = [
+  'docusaurus.config.js',
+  'docusaurus.config.mjs',
+  'docusaurus.config.cjs',
+  'docusaurus.config.ts', // requer Node >= 22.18 (type stripping)
+];
+
+async function readSiteConfig(moduleRoot) {
+  const configFile = CONFIG_FILES.find((f) => fs.existsSync(path.join(moduleRoot, f)));
+  if (!configFile) {
+    throw new Error(`docusaurus.config.* não encontrado em: ${moduleRoot}`);
+  }
+  const mod = await import(pathToFileURL(path.join(moduleRoot, configFile)).href);
   const config = mod.default ?? mod;
   return { siteUrl: config.url, baseUrl: config.baseUrl };
 }
@@ -37,14 +47,14 @@ function listPages(buildDir) {
 function extractImages(pages, siteUrl, baseUrl) {
   const images = [];
 
-  // for (const { route, htmlPath } of pages) {
-  //   const $ = cheerio.load(fs.readFileSync(htmlPath, 'utf-8'));
-  //   $('img').each((_, el) => {
-  //     const src = $(el).attr('src');
-  //     if (!src || !src.startsWith(baseUrl)) return;
-  //     images.push({ imageUrl: `${siteUrl}${src}`, page: route });
-  //   });
-  // }
+  for (const { route, htmlPath } of pages) {
+    const $ = cheerio.load(fs.readFileSync(htmlPath, 'utf-8'));
+    $('img').each((_, el) => {
+      const src = $(el).attr('src');
+      if (!src || !src.startsWith(baseUrl)) return;
+      images.push({ imageUrl: `${siteUrl}${src}`, page: route });
+    });
+  }
 
   return images;
 }

@@ -1,6 +1,7 @@
 
 // Funções para ler algumas variáveis de ambiente e argumentos passados para o script
 
+import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { listPages, extractImages, readSiteConfig } from './read-docusaurus-output.js';
 
@@ -23,10 +24,8 @@ console.log('Path do build:', values['build-path']);
 console.log('CLIENT_ID definido?', !!process.env.STACKSPOT_CLIENT_ID);
 console.log('Tamanho:', process.env.STACKSPOT_CLIENT_ID?.length);
 
-// TODO: reativar junto com extractImages (o config do módulo é docusaurus.config.ts, não .js)
-// const { siteUrl, baseUrl } = await readSiteConfig(values.path);
-const siteUrl = undefined;
-const baseUrl = undefined;
+// o docusaurus.config.* fica na raiz do módulo, um nível acima da pasta docs
+const { siteUrl, baseUrl } = await readSiteConfig(path.dirname(path.resolve(values.path)));
 const pages = listPages(values['build-path']);
 const images = extractImages(pages, siteUrl, baseUrl);
 
