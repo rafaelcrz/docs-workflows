@@ -44,6 +44,27 @@ export async function createKnowledgeSource(token, { slug, name, description, ty
   });
 }
 
+// Lista os knowledge objects da KS. O formato da resposta não está documentado,
+// então toda a normalização fica aqui: [{ id, fileName }]
+export async function listKnowledgeObjects(token, ksSlug) {
+  const response = await request(`${API_URL}/v1/knowledge-sources/${ksSlug}/objects`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await response.json();
+  const items = Array.isArray(data) ? data : (data.content ?? data.items ?? data.data ?? data.objects ?? []);
+  return items.map((item) => ({
+    id: item.id,
+    fileName: item.file_name ?? item.fileName ?? item.name,
+  }));
+}
+
+export async function deleteKnowledgeObject(token, ksSlug, objectId) {
+  await request(`${API_URL}/v1/knowledge-sources/${ksSlug}/objects/${objectId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
 // 1) pede o form pré-assinado do S3
 async function requestUploadForm(token, { fileName, ksSlug }) {
   const response = await request(`${API_URL}/v2/file-upload/form`, {
@@ -105,13 +126,11 @@ async function waitForIndexing(token, uploadId) {
 
 // Orquestra o envio de um .zip para uma KS existente
 export async function uploadZipToKnowledgeSource({
-  credentials,
+  token,
   ksSlug,
   zipPath,
   split = { splitStrategy: 'NONE' },
 }) {
-  console.log('   🔑 Autenticando...');
-  const token = await getToken(credentials);
   console.log('   📨 Solicitando URL de upload...');
   const upload = await requestUploadForm(token, { fileName: path.basename(zipPath), ksSlug });
   console.log('   📤 Enviando zip para o S3...');

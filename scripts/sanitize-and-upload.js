@@ -16,7 +16,13 @@ import { sanitize } from './sanitize.js';
 import { upload } from './upload.js';
 import { writeImagesMarkdown } from './images-markdown.js';
 import { zipFiles } from './zip.js';
-import { uploadZipToKnowledgeSource } from './stackspot-client.js';
+import {
+  getToken,
+  listKnowledgeObjects,
+  deleteKnowledgeObject,
+  uploadZipToKnowledgeSource,
+} from './stackspot-client.js';
+import { computeDiff } from './reconcile.js';
 
 const { values } = parseArgs({
   options: {
@@ -35,7 +41,7 @@ if (!values.path || !values['build-path']) {
   process.exit(1);
 }
 
-const TOTAL_STEPS = values.publish ? 6 : 5;
+const TOTAL_STEPS = values.publish ? 8 : 5;
 let currentStep = 0;
 const step = (emoji, message) => console.log(`\n${emoji} [${++currentStep}/${TOTAL_STEPS}] ${message}`);
 
@@ -82,24 +88,39 @@ if (!values.publish) {
   process.exit(0);
 }
 
-step('☁️', 'Enviando para a Knowledge Source do StackSpot');
 const ksSlug = values['ks-slug'] ?? process.env.KS_SLUG;
 const { STACKSPOT_REALM, STACKSPOT_CLIENT_ID, STACKSPOT_CLIENT_SECRET } = process.env;
 if (!ksSlug || !STACKSPOT_REALM || !STACKSPOT_CLIENT_ID || !STACKSPOT_CLIENT_SECRET) {
   console.error('❌ --publish exige o slug (--ks-slug ou env KS_SLUG) e as variáveis STACKSPOT_REALM, STACKSPOT_CLIENT_ID e STACKSPOT_CLIENT_SECRET');
   process.exit(1);
 }
-console.log(`   🎯 Knowledge Source: ${ksSlug}`);
 
-const result = await uploadZipToKnowledgeSource({
-  credentials: {
-    realm: STACKSPOT_REALM,
-    clientId: STACKSPOT_CLIENT_ID,
-    clientSecret: STACKSPOT_CLIENT_SECRET,
-  },
-  ksSlug,
-  zipPath: values['zip-path'],
+step('🔍', 'Comparando com o que já existe na Knowledge Source');
+console.log(`   🎯 Knowledge Source: ${ksSlug}`);
+console.log('   🔑 Autenticando...');
+const token = await getToken({
+  realm: STACKSPOT_REALM,
+  clientId: STACKSPOT_CLIENT_ID,
+  clientSecret: STACKSPOT_CLIENT_SECRET,
 });
+const existingObjects = await listKnowledgeObjects(token, ksSlug);
+console.log(`   📚 ${existingObjects.length} objeto(s) existente(s) na KS`);
+
+const diff = computeDiff(outputFiles, existingObjects);
+console.log(`   ➕ Criar: ${diff.create.length} | 🔄 Atualizar: ${diff.update.length} | 🗑️  Remover: ${diff.remove.length}`);
+for (const { fileName } of diff.remove) console.log(`      🗑️  ${fileName} (não existe mais no build)`);
+
+step('🗑️', 'Removendo objetos desatualizados e obsoletos');
+// atualizar = apagar o objeto antigo e enviar o novo no zip
+const idsToDelete = [...diff.update, ...diff.remove].flatMap(({ ids }) => ids);
+for (const id of idsToDelete) {
+  await deleteKnowledgeObject(token, ksSlug, id);
+}
+console.log(`   ✅ ${idsToDelete.length} objeto(s) removido(s)`);
+
+step('☁️', 'Enviando para a Knowledge Source do StackSpot');
+// criar + atualizar = todos os arquivos desejados, então o zip já contém exatamente isso
+const result = await uploadZipToKnowledgeSource({ token, ksSlug, zipPath: values['zip-path'] });
 
 const { added, preserved, removed } = result.summary ?? {};
 console.log(`\n🎉 Concluído! Resumo: ➕ ${added ?? 0} adicionado(s) | ♻️  ${preserved ?? 0} preservado(s) | ➖ ${removed ?? 0} removido(s)`);

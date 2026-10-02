@@ -12,7 +12,18 @@ const POLLS_UNTIL_INDEXED = Number(process.env.MOCK_POLLS_UNTIL_INDEXED ?? 3);
 const FAIL = process.env.MOCK_FAIL === '1';
 
 const knowledgeSources = new Map(); // slug -> { slug, name, description, type }
+const objects = new Map(); // slug -> [{ id, file_name }]
 const uploads = new Map(); // id -> { id, file_name, target_id, polls, created, uploadedBytes }
+
+// nomes dos arquivos de um zip, lendo o diretório central (assinatura PK\x01\x02)
+function zipEntryNames(buffer) {
+  const names = [];
+  for (let i = buffer.indexOf('PK\x01\x02', 0, 'latin1'); i !== -1; i = buffer.indexOf('PK\x01\x02', i + 4, 'latin1')) {
+    const nameLength = buffer.readUInt16LE(i + 28);
+    names.push(buffer.toString('utf8', i + 46, i + 46 + nameLength));
+  }
+  return names;
+}
 
 function send(res, status, body) {
   res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -61,6 +72,7 @@ const server = http.createServer(async (req, res) => {
         return send(res, 400, { error: 'campos do form ausentes' });
       }
       upload.uploadedBytes = body.length;
+      upload.entryNames = zipEntryNames(body);
       res.writeHead(204);
       return res.end();
     }
@@ -112,7 +124,26 @@ const server = http.createServer(async (req, res) => {
       const valid = ['NONE', 'LINES_QUANTITY', 'TOKENS_QUANTITY', 'CHARACTERS_QUANTITY', 'SYNTACTIC', 'ENDPOINT'];
       if (!valid.includes(split_strategy)) return send(res, 400, { error: 'split_strategy inválido' });
       upload.created = true;
+      const list = objects.get(upload.target_id) ?? [];
+      for (const name of upload.entryNames ?? [upload.file_name]) {
+        list.push({ id: randomUUID(), file_name: name });
+      }
+      objects.set(upload.target_id, list);
       return send(res, 200, {});
+    }
+
+    // GET /v1/knowledge-sources/{slug}/objects  |  DELETE .../objects/{id}
+    const objs = url.pathname.match(/^\/v1\/knowledge-sources\/([^/]+)\/objects(?:\/([^/]+))?$/);
+    if (objs) {
+      const [, slug, objectId] = objs;
+      const list = objects.get(slug) ?? [];
+      if (req.method === 'GET' && !objectId) return send(res, 200, list);
+      if (req.method === 'DELETE' && objectId) {
+        if (!list.some((o) => o.id === objectId)) return send(res, 404, { error: 'object not found' });
+        objects.set(slug, list.filter((o) => o.id !== objectId));
+        res.writeHead(204);
+        return res.end();
+      }
     }
 
     // GET /v1/file-upload/{id}
@@ -126,7 +157,7 @@ const server = http.createServer(async (req, res) => {
       if (!upload.created) return send(res, 200, { ...base, status: 'NEW' });
       if (upload.polls < POLLS_UNTIL_INDEXED) return send(res, 200, { ...base, status: 'PROCESSING' });
       if (FAIL) return send(res, 200, { ...base, status: 'ERROR', error_description: 'falha simulada pelo mock' });
-      return send(res, 200, { ...base, status: 'INDEXED', summary: { added: 1, preserved: 0, removed: 0, errors: {} } });
+      return send(res, 200, { ...base, status: 'INDEXED', summary: { added: upload.entryNames?.length ?? 1, preserved: 0, removed: 0, errors: {} } });
     }
 
     send(res, 404, { error: `rota não mockada: ${route}` });
