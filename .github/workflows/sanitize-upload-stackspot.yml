@@ -42,8 +42,14 @@ jobs:
         run: npm ci
         working-directory: scripts-repo
 
+      - name: Build do Docusaurus
+        run: |
+          npm ci
+          npm run build
+        working-directory: module-docs
+
       - name: Sanitizar e enviar ao StackSpot
-        run: node scripts-repo/scripts/sanitize-and-upload.js --path "${{ github.workspace }}/module-docs/${{ inputs.docs-path }}" --module "${{ inputs.module-name }}"
+        run: node scripts-repo/scripts/sanitize-and-upload.js --path "${{ github.workspace }}/module-docs/${{ inputs.docs-path }}" --build-path "${{ github.workspace }}/module-docs/build"
         env:
           STACKSPOT_CLIENT_ID: ${{ secrets.STACKSPOT_CLIENT_ID }}
           STACKSPOT_CLIENT_SECRET: ${{ secrets.STACKSPOT_CLIENT_SECRET }}
