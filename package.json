@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com/rafaelcrz/docs-workflows#readme",
   "dependencies": {
+    "adm-zip": "^0.6.1",
     "cheerio": "^1.2.0",
     "gray-matter": "^4.0.3",
     "node-fetch": "^3.3.2"

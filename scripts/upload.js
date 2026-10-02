@@ -9,4 +9,5 @@ export function upload(route, sanitizedContent, outputDir) {
   fs.writeFileSync(outputPath, sanitizedContent, 'utf-8');
 
   console.log(`[upload] (stub) arquivo pronto para envio: ${outputPath} (rota: ${route})`);
+  return outputPath;
 }
