@@ -89,9 +89,12 @@ async function waitForIndexing(token, uploadId) {
       headers: { Authorization: `Bearer ${token}` },
     });
     const status = await response.json();
-    console.log(`[stackspot] status do upload: ${status.status}`);
+    console.log(`      🔄 Status: ${status.status}`);
 
-    if (status.status === 'INDEXED') return status; // status.summary: added/preserved/removed/errors
+    if (status.status === 'INDEXED') {
+      console.log('   ✅ Indexação concluída');
+      return status; // status.summary: added/preserved/removed/errors
+    }
     if (status.status === 'ERROR' || status.status === 'SPLIT_ERROR') {
       throw new Error(`Upload ${uploadId} falhou: ${status.error_description ?? status.status}`);
     }
@@ -107,9 +110,14 @@ export async function uploadZipToKnowledgeSource({
   zipPath,
   split = { splitStrategy: 'NONE' },
 }) {
+  console.log('   🔑 Autenticando...');
   const token = await getToken(credentials);
+  console.log('   📨 Solicitando URL de upload...');
   const upload = await requestUploadForm(token, { fileName: path.basename(zipPath), ksSlug });
+  console.log('   📤 Enviando zip para o S3...');
   await uploadToS3(upload, zipPath);
+  console.log('   🧩 Criando knowledge objects...');
   await createKnowledgeObjects(token, upload.id, split);
+  console.log('   ⏳ Aguardando indexação...');
   return waitForIndexing(token, upload.id);
 }

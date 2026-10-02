@@ -31,52 +31,65 @@ const { values } = parseArgs({
 });
 
 if (!values.path || !values['build-path']) {
-  console.error('Uso: node sanitize-and-upload.js --path <docs-dir> --build-path <build-dir> [--output-path <dir>] [--zip-path <file>] [--publish [--ks-slug <slug>]]');
+  console.error('❌ Uso: node sanitize-and-upload.js --path <docs-dir> --build-path <build-dir> [--output-path <dir>] [--zip-path <file>] [--publish [--ks-slug <slug>]]');
   process.exit(1);
 }
 
-console.log('Path do docs:', values.path);
-console.log('Path do build:', values['build-path']);
+const TOTAL_STEPS = values.publish ? 6 : 5;
+let currentStep = 0;
+const step = (emoji, message) => console.log(`\n${emoji} [${++currentStep}/${TOTAL_STEPS}] ${message}`);
 
-console.log('CLIENT_ID definido?', !!process.env.STACKSPOT_CLIENT_ID);
-console.log('Tamanho:', process.env.STACKSPOT_CLIENT_ID?.length);
+console.log('🚀 Sanitize and Upload — StackSpot');
+console.log(`   📁 Docs:   ${values.path}`);
+console.log(`   🏗️  Build:  ${values['build-path']}`);
+console.log(`   📤 Saída:  ${values['output-path']}`);
+console.log(`   🔌 Modo:   ${values.publish ? 'publicar no StackSpot' : 'somente gerar arquivos (sem enviar)'}`);
 
+step('⚙️', 'Lendo configuração do Docusaurus');
 // o docusaurus.config.* fica na raiz do módulo, um nível acima da pasta docs
 const { siteUrl, baseUrl } = await readSiteConfig(path.dirname(path.resolve(values.path)));
+console.log(`   🌐 siteUrl: ${siteUrl} | baseUrl: ${baseUrl}`);
+
+step('🗂️', 'Lendo páginas geradas no build');
 const pages = listPages(values['build-path']);
-const images = extractImages(pages, siteUrl, baseUrl);
-
-console.log(`Páginas encontradas: ${pages.length}`);
-console.log(pages);
-console.log(`Imagens encontradas: ${images.length}`);
-console.log(images);
-
 const routeIndex = buildRouteIndex(pages);
+console.log(`   ✅ ${pages.length} página(s) encontrada(s)`);
+
+step('🖼️', 'Extraindo imagens das páginas');
+const images = extractImages(pages, siteUrl, baseUrl);
+console.log(`   ✅ ${images.length} imagem(ns) encontrada(s)`);
+
+step('🧹', 'Sanitizando e nomeando arquivos pelas rotas');
+const docFiles = listDocFiles(values.path);
+console.log(`   📄 ${docFiles.length} arquivo(s) .md/.mdx encontrado(s)`);
 
 const outputFiles = [];
-
-for (const file of listDocFiles(values.path)) {
+for (const file of docFiles) {
   const route = resolveRouteForSource(file, values.path, routeIndex, '/docs');
   const sanitized = sanitize(file, fs.readFileSync(file, 'utf-8'));
-  outputFiles.push(upload(route, sanitized, values['output-path']));
+  const outputPath = upload(route, sanitized, values['output-path']);
+  outputFiles.push(outputPath);
+  console.log(`   ✅ ${path.relative(values.path, file)} → ${path.basename(outputPath)} (rota: ${route})`);
 }
-
 outputFiles.push(writeImagesMarkdown(images, values['output-path']));
 
+step('📦', 'Gerando o arquivo .zip');
 // zipa só o que foi gerado nesta execução (evita arquivos velhos da pasta de saída)
 zipFiles(outputFiles, values['zip-path']);
 
 if (!values.publish) {
-  console.log('Concluído (nada foi enviado ao StackSpot; use --publish para enviar).');
+  console.log('\n🎉 Concluído! Nada foi enviado ao StackSpot (use --publish para enviar).');
   process.exit(0);
 }
 
+step('☁️', 'Enviando para a Knowledge Source do StackSpot');
 const ksSlug = values['ks-slug'] ?? process.env.KS_SLUG;
 const { STACKSPOT_REALM, STACKSPOT_CLIENT_ID, STACKSPOT_CLIENT_SECRET } = process.env;
 if (!ksSlug || !STACKSPOT_REALM || !STACKSPOT_CLIENT_ID || !STACKSPOT_CLIENT_SECRET) {
-  console.error('--publish exige o slug (--ks-slug ou env KS_SLUG) e as variáveis STACKSPOT_REALM, STACKSPOT_CLIENT_ID e STACKSPOT_CLIENT_SECRET');
+  console.error('❌ --publish exige o slug (--ks-slug ou env KS_SLUG) e as variáveis STACKSPOT_REALM, STACKSPOT_CLIENT_ID e STACKSPOT_CLIENT_SECRET');
   process.exit(1);
 }
+console.log(`   🎯 Knowledge Source: ${ksSlug}`);
 
 const result = await uploadZipToKnowledgeSource({
   credentials: {
@@ -87,4 +100,6 @@ const result = await uploadZipToKnowledgeSource({
   ksSlug,
   zipPath: values['zip-path'],
 });
-console.log('Concluído. Resumo do StackSpot:', result.summary);
+
+const { added, preserved, removed } = result.summary ?? {};
+console.log(`\n🎉 Concluído! Resumo: ➕ ${added ?? 0} adicionado(s) | ♻️  ${preserved ?? 0} preservado(s) | ➖ ${removed ?? 0} removido(s)`);

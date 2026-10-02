@@ -24,6 +24,6 @@ export function writeImagesMarkdown(images, outputDir) {
   const outputPath = path.join(outputDir, IMAGES_FILE_NAME);
   fs.writeFileSync(outputPath, lines.join('\n'), 'utf-8');
 
-  console.log(`[images] lista de imagens gravada em: ${outputPath}`);
+  console.log(`   📝 Lista de imagens gravada: ${IMAGES_FILE_NAME}`);
   return outputPath;
 }

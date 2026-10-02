@@ -19,6 +19,6 @@ export function zipFiles(filePaths, zipPath) {
     throw new Error(`Zip excede 10 MB (${size} bytes): ${zipPath}`);
   }
 
-  console.log(`[zip] ${filePaths.length} arquivo(s) em ${zipPath} (${size} bytes)`);
+  console.log(`   ✅ ${filePaths.length} arquivo(s) zipado(s) em ${zipPath} (${(size / 1024).toFixed(1)} KB)`);
   return zipPath;
 }
