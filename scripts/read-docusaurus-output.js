@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import * as cheerio from 'cheerio';
+import matter from 'gray-matter';
 
 const CONFIG_FILES = [
   'docusaurus.config.js',
@@ -59,4 +60,41 @@ function extractImages(pages, siteUrl, baseUrl) {
   return images;
 }
 
-export { listPages, extractImages, readSiteConfig };
+function buildRouteIndex(pages) {
+  const index = new Map();
+  for (const { route, htmlPath } of pages) {
+    index.set(route, htmlPath);
+  }
+  return index;
+}
+
+function deriveDefaultRoute(sourceFilePath, docsRoot, routeBasePath = '/docs') {
+  let relative = path.relative(docsRoot, sourceFilePath);
+  relative = relative.replace(/\.mdx?$/, '');
+  relative = relative.replace(/\\/g, '/');
+
+  if (relative.endsWith('/index') || relative === 'index') {
+    relative = relative.replace(/\/?index$/, '');
+  }
+
+  return `${routeBasePath}/${relative}`.replace(/\/+$/, '') || routeBasePath;
+}
+
+function getCustomSlug(sourceFilePath) {
+  const raw = fs.readFileSync(sourceFilePath, 'utf-8');
+  const { data } = matter(raw);
+  return data.slug ?? null;
+}
+
+function resolveRouteForSource(sourceFilePath, docsRoot, routeIndex, routeBasePath = '/docs') {
+  const customSlug = getCustomSlug(sourceFilePath);
+
+  if (customSlug) {
+    const candidate = customSlug.startsWith('/') ? customSlug : `${routeBasePath}/${customSlug}`;
+    if (routeIndex.has(candidate)) return candidate;
+  }
+
+  return deriveDefaultRoute(sourceFilePath, docsRoot, routeBasePath);
+}
+
+export { listPages, extractImages, readSiteConfig, buildRouteIndex, resolveRouteForSource };
