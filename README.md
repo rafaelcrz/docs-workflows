@@ -15,6 +15,7 @@ arquivos `.md`/`.mdx`, nomeia cada um pela rota final da página e envia tudo, e
 - [Requisitos do módulo que chama](#requisitos-do-módulo-que-chama)
 - [Etapas da action](#etapas-da-action)
 - [O que o script faz](#o-que-o-script-faz)
+- [Diagramas do fluxo](#diagramas-do-fluxo)
 - [Reconciliação com a Knowledge Source](#reconciliação-com-a-knowledge-source)
 - [Arquivos gerados](#arquivos-gerados)
 - [Rodar localmente](#rodar-localmente)
@@ -129,6 +130,83 @@ Variáveis de ambiente usadas com `--publish`:
 | `STACKSPOT_CLIENT_ID` / `STACKSPOT_CLIENT_SECRET` | Credenciais OAuth2 (client credentials). |
 | `STACKSPOT_IDM_URL` / `STACKSPOT_API_URL` | Trocam as URLs do StackSpot (usado para apontar ao mock). |
 | `STACKSPOT_POLL_INTERVAL_MS` | Intervalo do polling de status. Padrão: 2 minutos. O tempo total máximo é 10 minutos. |
+
+## Diagramas do fluxo
+
+Os diagramas abaixo consideram o **StackSpot real** (`use-mock: false`), sem o mock.
+
+### Fluxograma
+
+```mermaid
+flowchart TD
+    A([Push no repositório do módulo]) --> B[Workflow chama sanitize-upload-stackspot.yml]
+    B --> C["Checkout do módulo e do repo de scripts"]
+    C --> D["Setup Node 22 + npm ci dos scripts"]
+    D --> E["npm ci + npm run build no módulo"]
+    E --> F{"Build passou?"}
+    F -- não --> X1([Job falha])
+    F -- sim --> G["Script: lê url e baseUrl do docusaurus.config"]
+    G --> H["Lista as páginas do build/ e monta o índice de rotas"]
+    H --> I["Extrai as imagens das páginas"]
+    I --> J["Para cada .md/.mdx: resolve a rota, sanitiza e grava docs_rota.md"]
+    J --> K["Gera o _images.md"]
+    K --> L["Gera o knowledge-source.zip"]
+    L --> M["Autentica no StackSpot - OAuth2 client credentials"]
+    M --> N["Lista os objetos existentes na KS"]
+    N --> O["Calcula o diff: criar, atualizar, remover"]
+    O --> P["Apaga os objetos a atualizar e os obsoletos"]
+    P --> Q["Envia o zip: form pré-assinado, S3, criação dos objetos"]
+    Q --> R["Polling do status do upload"]
+    R --> S{"Status"}
+    S -- "NEW / PROCESSING / SPLITTED" --> T{"Passou de 10 min?"}
+    T -- não --> R
+    T -- sim --> X2([Job falha: timeout])
+    S -- "ERROR / SPLIT_ERROR" --> X3([Job falha: upload com erro])
+    S -- INDEXED --> Z([Resumo: adicionados, preservados, removidos])
+```
+
+### Diagrama de sequência
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant GH as GitHub Actions
+    participant S as sanitize-and-upload.js
+    participant IDM as StackSpot IDM
+    participant API as StackSpot API
+    participant S3 as S3 (upload pré-assinado)
+
+    GH->>GH: Checkout, setup Node 22, npm ci e npm run build
+    GH->>S: Executa com --publish
+    S->>S: Lê config, páginas, imagens e sanitiza os docs
+    S->>S: Gera os arquivos por rota, o _images.md e o .zip
+
+    S->>IDM: POST /{realm}/oidc/oauth/token
+    IDM-->>S: access_token
+
+    S->>API: GET /v1/knowledge-sources/{ks}/objects
+    API-->>S: objetos existentes
+    S->>S: Calcula o diff: criar, atualizar, remover
+
+    loop Cada objeto a atualizar ou remover
+        S->>API: DELETE /v1/knowledge-sources/{ks}/objects/{id}
+        API-->>S: 2xx
+    end
+
+    S->>API: POST /v2/file-upload/form
+    API-->>S: id, url e form pré-assinado
+    S->>S3: POST url com os campos do form e o zip
+    S3-->>S: 2xx
+    S->>API: POST /v1/file-upload/{id}/knowledge-objects
+    API-->>S: 2xx
+
+    loop Até INDEXED ou 10 min
+        S->>API: GET /v1/file-upload/{id}
+        API-->>S: status
+    end
+
+    S-->>GH: Resumo: adicionados, preservados, removidos
+```
 
 ## Reconciliação com a Knowledge Source
 
